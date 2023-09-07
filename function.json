@@ -1,0 +1,17 @@
+{
+  "scriptFile": "__init__.py",
+  "bindings": [
+    {
+      "name": "msg",
+      "type": "queueTrigger",
+      "direction": "in",
+      "queueName": "queue-mail-m1-cin-001",
+      "connection": "samltrainingsandboxci001_STORAGE"
+    }
+  ],
+  "retry": {
+    "strategy": "fixedDelay",
+    "maxRetryCount": 4,
+    "delayInterval": "00:00:30"
+}
+}
