@@ -275,7 +275,7 @@ db = client[DB_NAME]
 collection = db[COLLECTION_NAME]
 
 
-# In[73]:
+# In[185]:
 
 
 def fetch_messageID():
@@ -284,11 +284,11 @@ def fetch_messageID():
     SaS_credential = '?sv=2022-11-02&ss=bq&srt=sco&sp=rwdlacupiytfx&se=2023-10-03T20:50:52Z&st=2023-09-04T12:50:52Z&spr=https,http&sig=8dQCWp1dWB%2B1FJrqbff9DZBIzVE8h2nBFLaRcxdNyPY%3D'
     connection_string = 'BlobEndpoint=https://sam1cin001.blob.core.windows.net/;QueueEndpoint=https://sam1cin001.queue.core.windows.net/;FileEndpoint=https://sam1cin001.file.core.windows.net/;TableEndpoint=https://sam1cin001.table.core.windows.net/;SharedAccessSignature=' + SaS_credential
     queue_client = QueueClient.from_connection_string(connection_string, queue_name, SaS_credential)
-    message = queue_client.peek_messages()[0]
-    if(len(message)>0):
-        return message["id"]
-    if(len(message)==0):
-        return None
+    messages = queue_client.receive_messages(max_messages = 1)
+    for msg in messages:
+        msg_str = msg.content
+    enc_str = base64.b64decode(msg_str)
+    return enc_str["MessageId"]
 
 
 # In[106]:
@@ -324,19 +324,19 @@ def prcs(msgID, text_lst, meta_lst, embd_lst, index):
     return email_new
 
 
-# In[110]:
+# In[112]:
 
 
 @app.get("/")
 def fetch_mongoID():
     msgId = fetch_messageID()
-    if mongoID:
-        return {"mongoID": mongoID}
+    if mongoId:
+        return {"mongoID": msgId}
     else:
         return {"message": "No message found in the queue"}
     
 def process_email(
-    mongoID: str,
+    msgId: str,
     txt: list,
     meta: list,
     embd: list,
