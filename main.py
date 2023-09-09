@@ -46,9 +46,6 @@ app.add_middleware(
 
 # In[4]:
 
-
-import pyodbc
-
 server = 'sql-fullstack-sandbox-ci-001.database.windows.net'
 database = 'lvlaccess_embeddings'
 username = 'sqladmin'
@@ -294,9 +291,6 @@ def fetch_messageID():
     return enc_str
 
 
-# In[106]:
-
-
 def prcs(msgID, text_lst, meta_lst, embd_lst, index):
     if msgID == None:
         return None
@@ -323,21 +317,10 @@ def prcs(msgID, text_lst, meta_lst, embd_lst, index):
 
     email_bson["emailsQuestions"] = dic
     email_new = email_bson
-    docs.update_one(filter,{"$set" : email_new})
+    collection.update_one(filter,{"$set" : email_new})
     return email_new
-
-
 # In[112]:
-
-
 @app.get("/")
-def fetch_mongoID():
-    msgId = fetch_messageID()
-    if mongoId:
-        return {"mongoID": msgId}
-    else:
-        return {"message": "No message found in the queue"}
-    
 def process_email(
     msgId: str,
     txt: list,
@@ -345,9 +328,18 @@ def process_email(
     embd: list,
     index: int
 ):
+    print("Executing process_email function")
     email_result = prcs(msgId, txt, meta, embd, index)
     if email_result:
         return {"message": "Email processed successfully"}
     else:
         return {"message": "Email processing failed"}
-
+    
+def fetch_mongoID():
+    print("Executing fetch_mongoID function")
+    msgId = fetch_messageID()
+    if msgId:
+        process_email(msgId, txt, meta, embd, index)
+        return {"msgId": msgId}
+    else:
+        return {"message": "No message found in the queue"}
