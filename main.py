@@ -22,6 +22,7 @@ from pymongo import MongoClient
 from bson import BSON
 from bson.json_util import loads, dumps
 from azure.storage.queue import QueueServiceClient, QueueClient, QueueMessage
+import base64
 app = FastAPI()
 
 
@@ -275,7 +276,7 @@ db = client[DB_NAME]
 collection = db[COLLECTION_NAME]
 
 
-# In[185]:
+# In[197]:
 
 
 def fetch_messageID():
@@ -284,11 +285,13 @@ def fetch_messageID():
     SaS_credential = '?sv=2022-11-02&ss=bq&srt=sco&sp=rwdlacupiytfx&se=2023-10-03T20:50:52Z&st=2023-09-04T12:50:52Z&spr=https,http&sig=8dQCWp1dWB%2B1FJrqbff9DZBIzVE8h2nBFLaRcxdNyPY%3D'
     connection_string = 'BlobEndpoint=https://sam1cin001.blob.core.windows.net/;QueueEndpoint=https://sam1cin001.queue.core.windows.net/;FileEndpoint=https://sam1cin001.file.core.windows.net/;TableEndpoint=https://sam1cin001.table.core.windows.net/;SharedAccessSignature=' + SaS_credential
     queue_client = QueueClient.from_connection_string(connection_string, queue_name, SaS_credential)
+    
     messages = queue_client.receive_messages(max_messages = 1)
     for msg in messages:
         msg_str = msg.content
     enc_str = base64.b64decode(msg_str)
-    return enc_str["MessageId"]
+    enc_str = enc_str.decode('ascii').strip('{}').split(',')[1].strip('"MessageId":')
+    return enc_str
 
 
 # In[106]:
