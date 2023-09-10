@@ -1,9 +1,5 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 import pyodbc
 import pymongo
 import faiss
@@ -13,7 +9,6 @@ import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 from scipy import spatial
-from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import openai
 import requests
@@ -23,17 +18,11 @@ from bson import BSON
 from bson.json_util import loads, dumps
 from azure.storage.queue import QueueServiceClient, QueueClient, QueueMessage
 import base64
+import logging
+
 app = FastAPI()
 
-
-# In[2]:
-
-
 origins = ["*"]
-
-
-# In[3]:
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,24 +32,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 # In[4]:
 
-server = 'sql-fullstack-sandbox-ci-001.database.windows.net'
-database = 'lvlaccess_embeddings'
-username = 'sqladmin'
-password = 'Chandansql*'
-driver= 'ODBC Driver 17 for SQL Server;'
-
-cnxn = pyodbc.connect('DRIVER='+driver+';PORT=1433;SERVER='+server+';PORT=1443;DATABASE='+database+';UID='+username+';PWD='+ password)
-cursor = cnxn.cursor()
-
-
-# In[5]:
-
-
 def get_knowledge_base():
+    server = 'sql-fullstack-sandbox-ci-001.database.windows.net'
+    database = 'lvlaccess_embeddings'
+    username = 'sqladmin'
+    password = 'Chandansql*'
+    driver= 'ODBC Driver 17 for SQL Server;'
+
+    cnxn = pyodbc.connect('DRIVER='+driver+';PORT=1433;SERVER='+server+';PORT=1443;DATABASE='+database+';UID='+username+';PWD='+ password)
     sql_select = "SELECT * FROM EMBEDDINGS_STORAGE_levelaccess"
+    cursor = cnxn.cursor()
     cursor.execute(sql_select)
 
     # Fetch all rows from the result set
@@ -81,37 +64,11 @@ def get_knowledge_base():
     return txt_lst, embd_lst, meta_lst
 
 
-# In[6]:
-
-
-txt, embd, meta = get_knowledge_base()
-
-
-# In[98]:
-
-
-openai.api_key = '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'
-
-
-# In[8]:
-
-
 def num_tokens_from_string(string: str, encoding_name: str) -> int:
     """Returns the number of tokens in a text string."""
     encoding = tiktoken.get_encoding(encoding_name)
     num_tokens = len(encoding.encode(string))
     return num_tokens
-
-
-# In[9]:
-
-
-index = faiss.IndexFlatL2(len(embd[0]))
-index.add(np.array(embd))
-
-
-# In[91]:
-
 
 def generate_indices(txt_lst,meta_data,embd_lst,ques,index):
     try: 
@@ -139,10 +96,6 @@ def generate_indices(txt_lst,meta_data,embd_lst,ques,index):
         txts.append(txt_lst[i])
 
     return txts,ind
-
-
-# In[90]:
-
 
 def gen_ques(mbody):
     prompt = 'From the given email body, extract the questions that are asked by the sender to the receiver. Make sure that the questions generated follow the email wording strictly and are returned in the form of a list without an index.'
@@ -173,10 +126,6 @@ def gen_ques(mbody):
     mbody_ext = mbody_ext.strip("[]")
     ls = [i.strip("''") for i in mbody_ext.split(", ")]
     return ls
-
-
-# In[105]:
-
 
 def return_opt_prov(ques,predt,embd,idcs,meta,instruct):
     embd = np.array(embd)
@@ -260,22 +209,6 @@ def return_opt_prov(ques,predt,embd,idcs,meta,instruct):
     
     return predts, indpt, stn, score
 
-
-# In[81]:
-
-
-CONNECTION_STRING = 'mongodb+srv://FullStackAdmin:Hello%4012345@mongo-rfp-sandbox-eus-001.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
-DB_NAME = "foundationalai"
-COLLECTION_NAME = "usersEmail"
-# Create database if it doesn't
-client = pymongo.MongoClient(CONNECTION_STRING)
-db = client[DB_NAME]
-collection = db[COLLECTION_NAME]
-
-
-# In[197]:
-
-
 def fetch_messageID():
     queue_url = 'https://sam1cin001.queue.core.windows.net/queue-mail-m1-cin-001'
     queue_name = 'queue-mail-m1-cin-001'
@@ -290,8 +223,14 @@ def fetch_messageID():
     enc_str = enc_str.decode('ascii').strip('{}').split(',')[1].strip('"MessageId":')
     return enc_str
 
-
 def prcs(msgID, text_lst, meta_lst, embd_lst, index):
+    CONNECTION_STRING = 'mongodb+srv://FullStackAdmin:Hello%4012345@mongo-rfp-sandbox-eus-001.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000'
+    DB_NAME = "foundationalai"
+    COLLECTION_NAME = "usersEmail"
+    # Create database if it doesn't
+    client = pymongo.MongoClient(CONNECTION_STRING)
+    db = client[DB_NAME]
+    collection = db[COLLECTION_NAME]
     if msgID == None:
         return None
     email_bson = collection.find_one({"MessageId":msgID})
@@ -319,27 +258,29 @@ def prcs(msgID, text_lst, meta_lst, embd_lst, index):
     email_new = email_bson
     collection.update_one(filter,{"$set" : email_new})
     return email_new
-# In[112]:
+
+
 @app.get("/")
-def process_email(
-    msgId: str,
-    txt: list,
-    meta: list,
-    embd: list,
-    index: int
-):
-    print("Executing process_email function")
-    email_result = prcs(msgId, txt, meta, embd, index)
-    if email_result:
-        return {"message": "Email processed successfully"}
-    else:
-        return {"message": "Email processing failed"}
-    
-def fetch_mongoID():
-    print("Executing fetch_mongoID function")
-    msgId = fetch_messageID()
-    if msgId:
-        process_email(msgId, txt, meta, embd, index)
-        return {"msgId": msgId}
-    else:
-        return {"message": "No message found in the queue"}
+
+async def root():
+    openai.api_key = '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'
+    txt, embd, meta = get_knowledge_base()
+    index = faiss.IndexFlatL2(len(embd[0]))
+    try:
+        msgID = fetch_messageID()
+        if msgID:
+            email_result = prcs(msgID, txt, embd, meta, index)
+            if email_result:
+                # Return a success response without data
+                return JSONResponse(content={"message": "Email processed successfully"}, status_code=200)
+            else:
+                app.logger.error("Email not processed")
+                # Return a failure response without data
+                return JSONResponse(content={"message": "Email processing failed"}, status_code=500)
+        else:
+            # Return a failure response without data
+            return JSONResponse(content={"message": "No message ID found in the queue"}, status_code=400)
+    except Exception as e:
+        app.logger.error(f"Email processing error: {str(e)}")
+        # Return a failure response without data
+        return JSONResponse(content={"message": "Email processing failed"}, status_code=500)
